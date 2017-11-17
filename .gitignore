@@ -1,0 +1,7 @@
+.cache/*
+
+*.sqlite
+
+.rubocop-http*
+
+*.swp
