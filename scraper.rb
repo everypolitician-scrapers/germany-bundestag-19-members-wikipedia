@@ -55,8 +55,7 @@ class MemberRow < Scraped::HTML
   end
 
   field :constituency_wikidata do
-    # TODO: Would be nicer to use something like Rails' `#try` here
-    tds[5].css('a/@wikidata').text rescue nil
+    tds[5].css('a/@wikidata')&.text
   end
 
   field :term do
