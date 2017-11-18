@@ -46,6 +46,10 @@ class MemberRow < Scraped::HTML
     tds[3].text
   end
 
+  field :area do
+    tds[4].text
+  end
+
   field :constituency do
     tds[5].text
   end
