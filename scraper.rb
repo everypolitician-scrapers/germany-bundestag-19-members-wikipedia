@@ -46,6 +46,10 @@ class MemberRow < Scraped::HTML
     tds[3].text
   end
 
+  field :party_wikidata do
+    party_colour_to_wikidata(party_colour)
+  end
+
   field :area do
     tds[4].text
   end
@@ -66,6 +70,52 @@ class MemberRow < Scraped::HTML
 
   def tds
     noko.css('td')
+  end
+
+  # TODO: Refactor with common code in PartyColourLookup
+  def first_html_colour_in_string(s)
+    s.match(/#(.*);/)[1]
+  end
+
+  # TODO: Refactor with common code in PartyColourLookup
+  def party_colour
+    first_html_colour_in_string(tds[3].attribute('style').value)
+  end
+
+  def party_colour_to_wikidata(colour)
+    PartyColourLookup.new(response: response).colours_to_wikidata[colour]
+  end
+end
+
+class PartyColourLookup < Scraped::HTML
+  field :colours_to_wikidata do
+    trs.map do |r|
+      [colour(r.css('td')[1]), wikidata(r.css('td')[0])]
+    end.to_h
+  end
+
+  private
+
+  def table
+    noko.xpath(".//table[.//th[contains(.,'Vorsitzende')]]").first
+  end
+
+  def trs
+    table.xpath('.//tr[td]')
+  end
+
+  # TODO: Refactor with common code in MemberRow
+  def first_html_colour_in_string(s)
+    s.match(/#(.*);/)[1]
+  end
+
+  # TODO: Refactor with common code in MemberRow
+  def colour(td)
+    first_html_colour_in_string(td.attribute('style').value)
+  end
+
+  def wikidata(td)
+    td.css('a/@wikidata').text
   end
 end
 
