@@ -9,8 +9,52 @@ require 'wikidata_ids_decorator'
 require 'open-uri/cached'
 OpenURI::Cache.cache_path = '.cache'
 
+class PartyWikidata < Scraped::Response::Decorator
+  attr_accessor :doc
+
+  def body
+    @doc = Nokogiri::HTML(super)
+    doc.tap do |d|
+      members_table = d.xpath(".//table[.//th[contains(.,'Mitglied')]]").first
+      members_table.xpath('.//tr[td]').each do |tr|
+        party_td = tr.css('td')[3]
+        party_td[:party_wikidata] = colours_to_wikidata[colour(party_td)]
+      end
+    end.to_s
+  end
+
+  private
+
+  def colours_to_wikidata
+    trs.map do |r|
+      [colour(r.css('td')[1]), wikidata(r.css('td')[0])]
+    end.to_h
+  end
+
+  def table
+    doc.xpath(".//table[.//th[contains(.,'Vorsitzende')]]").first
+  end
+
+  def trs
+    table.xpath('.//tr[td]')
+  end
+
+  def first_html_colour_in_string(s)
+    s.match(/#(.*);/)[1]
+  end
+
+  def colour(td)
+    first_html_colour_in_string(td.attribute('style').value)
+  end
+
+  def wikidata(td)
+    td.css('a/@wikidata').text
+  end
+end
+
 class MembersPage < Scraped::HTML
   decorator WikidataIdsDecorator::Links
+  decorator PartyWikidata
 
   field :members do
     table.xpath('.//tr[td]').map do |tr|
@@ -47,7 +91,7 @@ class MemberRow < Scraped::HTML
   end
 
   field :party_wikidata do
-    party_colour_to_wikidata(party_colour)
+    noko.css('@party_wikidata').text
   end
 
   field :area do
@@ -70,52 +114,6 @@ class MemberRow < Scraped::HTML
 
   def tds
     noko.css('td')
-  end
-
-  # TODO: Refactor with common code in PartyColourLookup
-  def first_html_colour_in_string(s)
-    s.match(/#(.*);/)[1]
-  end
-
-  # TODO: Refactor with common code in PartyColourLookup
-  def party_colour
-    first_html_colour_in_string(tds[3].attribute('style').value)
-  end
-
-  def party_colour_to_wikidata(colour)
-    PartyColourLookup.new(response: response).colours_to_wikidata[colour]
-  end
-end
-
-class PartyColourLookup < Scraped::HTML
-  field :colours_to_wikidata do
-    trs.map do |r|
-      [colour(r.css('td')[1]), wikidata(r.css('td')[0])]
-    end.to_h
-  end
-
-  private
-
-  def table
-    noko.xpath(".//table[.//th[contains(.,'Vorsitzende')]]").first
-  end
-
-  def trs
-    table.xpath('.//tr[td]')
-  end
-
-  # TODO: Refactor with common code in MemberRow
-  def first_html_colour_in_string(s)
-    s.match(/#(.*);/)[1]
-  end
-
-  # TODO: Refactor with common code in MemberRow
-  def colour(td)
-    first_html_colour_in_string(td.attribute('style').value)
-  end
-
-  def wikidata(td)
-    td.css('a/@wikidata').text
   end
 end
 
