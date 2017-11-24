@@ -18,17 +18,23 @@ class PartyWikidata < Scraped::Response::Decorator
       members_table = d.xpath(".//table[.//th[contains(.,'Mitglied')]]").first
       members_table.xpath('.//tr[td]').each do |tr|
         party_td = tr.css('td')[3]
-        party_td[:party_wikidata] = colours_to_wikidata[colour(party_td)]
+        if faction_td = colour_to_td[colour(party_td)]
+          party_td.replace(faction_td)
+        end
       end
     end.to_s
   end
 
   private
 
-  def colours_to_wikidata
+  def colour_to_td
+    @colour_hash ||= colour_hash
+  end
+
+  def colour_hash
     table = doc.xpath(".//table[.//th[contains(.,'Vorsitzende')]]").first
     table.xpath('.//tr[td]').map do |r|
-      [colour(r.css('td')[1]), wikidata(r.css('td')[0])]
+      [colour(r.css('td')[1]), r.css('td')[0]]
     end.to_h
   end
 
@@ -39,15 +45,11 @@ class PartyWikidata < Scraped::Response::Decorator
   def first_html_colour_in_string(s)
     s.match(/#(.*);/)[1]
   end
-
-  def wikidata(td)
-    td.css('a/@wikidata').text
-  end
 end
 
 class MembersPage < Scraped::HTML
-  decorator WikidataIdsDecorator::Links
   decorator PartyWikidata
+  decorator WikidataIdsDecorator::Links
 
   field :members do
     table.xpath('.//tr[td]').map do |tr|
@@ -79,12 +81,12 @@ class MemberRow < Scraped::HTML
     tds[2].text
   end
 
-  field :party do
+  field :faction do
     tds[3].text
   end
 
-  field :party_wikidata do
-    noko.css('@party_wikidata').text
+  field :faction_wikidata do
+    tds[3].css('a/@wikidata').text
   end
 
   field :area do
