@@ -26,17 +26,10 @@ class PartyWikidata < Scraped::Response::Decorator
   private
 
   def colours_to_wikidata
-    trs.map do |r|
+    table = doc.xpath(".//table[.//th[contains(.,'Vorsitzende')]]").first
+    table.xpath('.//tr[td]').map do |r|
       [colour(r.css('td')[1]), wikidata(r.css('td')[0])]
     end.to_h
-  end
-
-  def table
-    doc.xpath(".//table[.//th[contains(.,'Vorsitzende')]]").first
-  end
-
-  def trs
-    table.xpath('.//tr[td]')
   end
 
   def first_html_colour_in_string(s)
