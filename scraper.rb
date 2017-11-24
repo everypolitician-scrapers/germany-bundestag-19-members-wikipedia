@@ -32,12 +32,12 @@ class PartyWikidata < Scraped::Response::Decorator
     end.to_h
   end
 
-  def first_html_colour_in_string(s)
-    s.match(/#(.*);/)[1]
-  end
-
   def colour(td)
     first_html_colour_in_string(td.attribute('style').value)
+  end
+
+  def first_html_colour_in_string(s)
+    s.match(/#(.*);/)[1]
   end
 
   def wikidata(td)
