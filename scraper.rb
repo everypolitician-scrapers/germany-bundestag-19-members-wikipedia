@@ -9,56 +9,51 @@ require 'wikidata_ids_decorator'
 require 'open-uri/cached'
 OpenURI::Cache.cache_path = '.cache'
 
-class PartyWikidata < Scraped::Response::Decorator
-  attr_accessor :doc
-
-  def body
-    @doc = Nokogiri::HTML(super)
-    doc.tap do |d|
-      members_table = d.xpath(".//table[.//th[contains(.,'Mitglied')]]").first
-      members_table.xpath('.//tr[td]').each do |tr|
-        party_td = tr.css('td')[3]
-        party_td[:party_wikidata] = colours_to_wikidata[colour(party_td)]
-      end
-    end.to_s
-  end
-
-  private
-
-  def colours_to_wikidata
-    table = doc.xpath(".//table[.//th[contains(.,'Vorsitzende')]]").first
-    table.xpath('.//tr[td]').map do |r|
-      [colour(r.css('td')[1]), wikidata(r.css('td')[0])]
-    end.to_h
-  end
-
-  def colour(td)
-    first_html_colour_in_string(td.attribute('style').value)
-  end
-
-  def first_html_colour_in_string(s)
-    s.match(/#(.*);/)[1]
-  end
-
-  def wikidata(td)
-    td.css('a/@wikidata').text
-  end
-end
-
 class MembersPage < Scraped::HTML
   decorator WikidataIdsDecorator::Links
-  decorator PartyWikidata
 
   field :members do
-    table.xpath('.//tr[td]').map do |tr|
-      fragment tr => MemberRow
+    members_table.xpath('.//tr[td]').map do |tr|
+      mem = fragment(tr => MemberRow).to_h
+      faction = factions.find { |f| f[:colour] == mem[:faction] } || {}
+      mem.merge(faction: faction[:name], faction_wikidata: faction[:wikidata])
+    end
+  end
+
+  field :factions do
+    @factions ||= factions_table.xpath('.//tr[td]').map do |tr|
+      fragment(tr => FactionRow).to_h
     end
   end
 
   private
 
-  def table
+  def members_table
     noko.xpath(".//table[.//th[contains(.,'Mitglied')]]").first
+  end
+
+  def factions_table
+    noko.xpath(".//table[.//th[contains(.,'Vorsitzende')]]").first
+  end
+end
+
+class FactionRow < Scraped::HTML
+  field :name do
+    tds[0].text
+  end
+
+  field :wikidata do
+    tds[0].css('a/@wikidata').text
+  end
+
+  field :colour do
+    tds[1].attr('style')[/#(\h+);/, 1]
+  end
+
+  private
+
+  def tds
+    noko.css('td')
   end
 end
 
@@ -83,8 +78,9 @@ class MemberRow < Scraped::HTML
     tds[3].text
   end
 
-  field :party_wikidata do
-    noko.css('@party_wikidata').text
+  field :faction do
+    # in this table we only have a colour. Capture that, and replace it later
+    tds[3].attr('style')[/#(\h+);/, 1]
   end
 
   field :area do
@@ -112,7 +108,7 @@ end
 
 url = 'https://de.wikipedia.org/wiki/Liste_der_Mitglieder_des_Deutschen_Bundestages_(19._Wahlperiode)'
 page = MembersPage.new(response: Scraped::Request.new(url: url).response)
-data = page.members.map(&:to_h).map { |m| m.reject { |_, v| v.to_s.empty? } }
+data = page.members.map(&:to_h)
 
 data.each { |mem| puts mem.reject { |_, v| v.to_s.empty? }.sort_by { |k, _| k }.to_h } if ENV['MORPH_DEBUG']
 ScraperWiki.sqliteexecute('DROP TABLE data') rescue nil
